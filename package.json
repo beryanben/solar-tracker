@@ -1,0 +1,32 @@
+{
+  "name": "solar-tracker",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.5.0",
+    "lucide-react": "^0.575.0",
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "suncalc": "^1.9.0",
+    "three": "^0.183.0"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@types/suncalc": "^1.9.2",
+    "@types/three": "^0.183.0",
+    "autoprefixer": "latest",
+    "postcss": "latest",
+    "tailwindcss": "latest",
+    "typescript": "latest"
+  }
+}
