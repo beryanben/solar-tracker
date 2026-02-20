@@ -3,18 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",
+    "@tailwindcss/vite": "^4.2.0",
     "lucide-react": "^0.575.0",
-    "next": "latest",
-    "react": "latest",
-    "react-dom": "latest",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
     "suncalc": "^1.9.0",
     "three": "^0.183.0"
   },
@@ -24,9 +23,11 @@
     "@types/react-dom": "latest",
     "@types/suncalc": "^1.9.2",
     "@types/three": "^0.183.0",
+    "@vitejs/plugin-react": "^5.1.4",
     "autoprefixer": "latest",
     "postcss": "latest",
-    "tailwindcss": "latest",
-    "typescript": "latest"
+    "tailwindcss": "^4.2.0",
+    "typescript": "latest",
+    "vite": "^7.3.1"
   }
 }

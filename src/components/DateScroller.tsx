@@ -44,8 +44,8 @@ export default function DateScroller({ selectedDate, onDateChange }: DateScrolle
                                 key={i}
                                 onClick={() => onDateChange(d)}
                                 className={`flex-shrink-0 min-w-[80px] h-20 rounded-2xl flex flex-col items-center justify-center transition-all duration-300 border ${isSelected
-                                        ? "bg-orange-500 border-orange-400 shadow-lg shadow-orange-500/20"
-                                        : "bg-white/5 border-white/5 hover:border-white/20"
+                                    ? "bg-orange-500 border-orange-400 shadow-lg shadow-orange-500/20"
+                                    : "bg-white/5 border-white/5 hover:border-white/20"
                                     }`}
                             >
                                 <span className={`text-[10px] font-bold uppercase tracking-tighter ${isSelected ? "text-white/60" : "text-white/20"}`}>
@@ -62,16 +62,6 @@ export default function DateScroller({ selectedDate, onDateChange }: DateScrolle
                     })}
                 </div>
             </div>
-
-            <style jsx>{`
-        .no-scrollbar::-webkit-scrollbar {
-          display: none;
-        }
-        .no-scrollbar {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
-      `}</style>
         </div>
     )
 }
