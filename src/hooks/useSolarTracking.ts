@@ -19,9 +19,17 @@ export default function useSolarTracking() {
     const fetchAddress = async (lat: number, lng: number) => {
         setLoadingAddress(true)
         try {
-            const response = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=fr`)
+            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`)
             const data = await response.json()
-            const fullAddress = [data.locality, data.city, data.principalSubdivision].filter(Boolean).join(", ")
+            const addressObj = data.address || {}
+
+            const streetName = addressObj.road || addressObj.pedestrian || ""
+            const houseNumber = addressObj.house_number || ""
+            const city = addressObj.city || addressObj.town || addressObj.village || addressObj.municipality || ""
+
+            const streetInfo = [houseNumber, streetName].filter(Boolean).join(" ")
+            const fullAddress = [streetInfo, city].filter(Boolean).join(", ")
+
             setAddress(fullAddress || "Adresse inconnue")
         } catch (error) {
             console.error("Erreur lors de la récupération de l'adresse:", error)

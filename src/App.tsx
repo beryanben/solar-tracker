@@ -24,7 +24,7 @@ const App = () => {
             {/* Top Left: Position Actual */}
             <div className="absolute top-10 left-10 flex flex-col gap-1 z-50 animate-in fade-in slide-in-from-top-4 duration-700">
                 <div className="flex items-center gap-2">
-                    <span className="text-[#888888] text-[10px] uppercase tracking-[0.3em] font-medium">Position Actual</span>
+                    <span className="text-[#888888] text-[10px] uppercase tracking-[0.3em] font-medium">Position</span>
                     <Navigation className="w-3 h-3 text-[#FF6600] fill-[#FF6600] rotate-45" />
                 </div>
                 <div className="text-white/60 text-[10px] tracking-wider truncate max-w-[200px]">
