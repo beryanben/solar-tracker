@@ -27,9 +27,13 @@ export default function SolarOverlay({ azimuth, altitude, hourlyPath = [], orien
         while (diffX <= -180) diffX += 360
         while (diffX > 180) diffX -= 360
 
-        // FOV scaling: 30 degrees off center = 50% screen width
-        const xPercent = 50 + (diffX / 30) * 50
-        const yPercent = 50 - ((sunElevation - phoneElevation) / 40) * 50
+        // iPhone Rear Camera typically has ~70° Diagonal FOV.
+        // Assuming ~60° Horizontal FOV and ~80° Vertical FOV for portrait web view.
+        // Screen width (100%) = 60 degrees. Therefore 1 degree = 100/60 = 1.66%
+        const xPercent = 50 + (diffX / 60) * 100
+
+        // Screen height (100%) = 80 degrees.
+        const yPercent = 50 - ((sunElevation - phoneElevation) / 80) * 100
 
         // Visibility bound (render even slightly offscreen to maintain path continuity)
         const isVisible = xPercent > -150 && xPercent < 250 && yPercent > -150 && yPercent < 250

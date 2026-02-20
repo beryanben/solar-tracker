@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useCallback, useRef } from "react"
 import SunCalc from "suncalc"
 
 interface SolarPosition {
@@ -56,20 +56,57 @@ export default function useSolarTracking() {
         }, { enableHighAccuracy: true })
     }
 
+    // Refs to hold previous smoothed values for the low-pass filter
+    const smoothedAlpha = useRef<number | null>(null)
+    const smoothedBeta = useRef<number | null>(null)
+    const smoothedGamma = useRef<number | null>(null)
+
+    // Smoothing factor (0 = no new data, 1 = no smoothing). Lower is smoother but laggier.
+    const SMOOTHING_FACTOR = 0.15
+
     const handleOrientation = useCallback((e: DeviceOrientationEvent) => {
-        let heading = e.alpha;
-        // Safari uses webkitCompassHeading for true north
+        let alpha = e.alpha || 0
+        let beta = e.beta || 0
+        let gamma = e.gamma || 0
+
+        // 1. Establish True Heading (North = 0)
+        let heading = alpha
+
+        // Safari iOS provides true heading directly via webkitCompassHeading
         if ('webkitCompassHeading' in e) {
-            heading = (e as any).webkitCompassHeading;
-        } else if (e.alpha !== null) {
-            // Convert standard DeviceOrientation (0=N, 90=W) to Compass (0=N, 90=E)
-            heading = 360 - e.alpha;
+            heading = (e as any).webkitCompassHeading
+        } else if (e.absolute && e.alpha !== null) {
+            // Android Absolute Orientation (0=N, 90=W, convert to 90=E)
+            heading = 360 - e.alpha
+        } else {
+            // Fallback for non-absolute, assumes initial position is arbitrary. 
+            // In a real pro app, we'd need Geolocation Magnetic Declination lookup here.
+            heading = 360 - alpha
+        }
+
+        // Normalize heading to 0-360
+        heading = (heading + 360) % 360
+
+        // 2. Apply Low-Pass Filter to eliminate jitter
+        if (smoothedAlpha.current === null) {
+            smoothedAlpha.current = heading
+            smoothedBeta.current = beta
+            smoothedGamma.current = gamma
+        } else {
+            // Handle 360 -> 0 wraparound for alpha
+            let diff = heading - smoothedAlpha.current
+            if (diff > 180) diff -= 360
+            if (diff < -180) diff += 360
+
+            smoothedAlpha.current = (smoothedAlpha.current + diff * SMOOTHING_FACTOR + 360) % 360
+            smoothedBeta.current = (smoothedBeta.current || 0) + (beta - (smoothedBeta.current || 0)) * SMOOTHING_FACTOR
+            smoothedGamma.current = (smoothedGamma.current || 0) + (gamma - (smoothedGamma.current || 0)) * SMOOTHING_FACTOR
         }
 
         setOrientation({
-            alpha: heading || 0,
-            beta: e.beta || 0,
-            gamma: e.gamma || 0
+            alpha: smoothedAlpha.current || 0,
+            beta: smoothedBeta.current || 0,
+            gamma: smoothedGamma.current || 0
         })
     }, [])
 
