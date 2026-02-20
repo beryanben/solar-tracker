@@ -8,17 +8,16 @@ interface SolarOverlayProps {
     altitude: number
     hourlyPath?: HourlySunPos[]
     orientation: { alpha: number; beta: number; gamma: number } | null
-    azimuthOffset?: number
 }
 
-export default function SolarOverlay({ azimuth, altitude, hourlyPath = [], orientation, azimuthOffset = 0 }: SolarOverlayProps) {
+export default function SolarOverlay({ azimuth, altitude, hourlyPath = [], orientation }: SolarOverlayProps) {
     // Helper to map AZ/ALT to Screen X/Y
     const mapToScreen = (az: number, alt: number) => {
         if (!orientation) {
             return { x: 50, y: 50, isVisible: true }
         }
 
-        const sunCompassHeading = (((az * 180 / Math.PI) + 180) + azimuthOffset) % 360
+        const sunCompassHeading = ((az * 180 / Math.PI) + 180) % 360
         const sunElevation = alt * 180 / Math.PI
 
         const phoneHeading = orientation.alpha
