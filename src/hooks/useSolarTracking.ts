@@ -46,15 +46,24 @@ export default function useSolarTracking() {
         }
     }
 
-    const refreshLocation = () => {
-        navigator.geolocation.getCurrentPosition((pos) => {
+    const watchId = useRef<number | null>(null)
+
+    const refreshLocation = useCallback(() => {
+        if (watchId.current !== null) navigator.geolocation.clearWatch(watchId.current)
+
+        watchId.current = navigator.geolocation.watchPosition((pos) => {
             const newCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude }
             setCoords(newCoords)
+            // Only fetch address once every few minutes or if distance moved is significant to save API calls
             fetchAddress(newCoords.lat, newCoords.lng)
         }, (err) => {
             console.error("Erreur GPS:", err)
-        }, { enableHighAccuracy: true })
-    }
+        }, {
+            enableHighAccuracy: true,
+            maximumAge: 0,
+            timeout: 5000
+        })
+    }, [])
 
     // Refs to hold previous smoothed values for the low-pass filter
     const smoothedAlpha = useRef<number | null>(null)

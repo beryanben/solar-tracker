@@ -10,7 +10,11 @@ export default function CameraView() {
             try {
                 // Ensure audio is strictly false so iOS doesn't show the red "recording" pill
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: "environment" },
+                    video: {
+                        facingMode: "environment",
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    },
                     audio: false,
                 })
                 if (videoRef.current) {
