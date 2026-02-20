@@ -10,154 +10,132 @@ interface SolarOverlayProps {
     orientation: { alpha: number; beta: number; gamma: number } | null
 }
 
-const FOV_Y = 60 // Vertical field of view in degrees
-
+/**
+ * CSS 3D AR ENGINE
+ * Instead of raw matrix math, we use the browser's native CSS 3D transformation engine.
+ * We rotate a "Celestial Sphere" (container) by the negative of the phone's orientation.
+ * We then place the sun and hours inside it using their absolute Azimuth/Altitude.
+ */
 export default function SolarOverlay({ azimuth, altitude, hourlyPath = [], orientation }: SolarOverlayProps) {
-    /**
-     * MASTER 3D PROJECTION ENGINE (FIXED)
-     */
-    const mapToScreen = useMemo(() => {
-        if (!orientation) return () => ({ x: 50, y: 50, isVisible: false })
 
-        // 1. Degrees to Radians
-        const alpha = (orientation.alpha * Math.PI) / 180
-        const beta = (orientation.beta * Math.PI) / 180
-        const gamma = (orientation.gamma * Math.PI) / 180
-
-        /**
-         * 2. Build Rotation Matrix (W3C standard Z-X-Y)
-         * We need the rotation from World to Device.
-         */
-        const cA = Math.cos(alpha), sA = Math.sin(alpha)
-        const cB = Math.cos(beta), sB = Math.sin(beta)
-        const cG = Math.cos(gamma), sG = Math.sin(gamma)
-
-        // Rotation matrix elements for Earth -> Phone
-        const r11 = cA * cG - sA * sB * sG
-        const r12 = -cA * sG - sA * sB * cG
-        const r13 = -sA * cB
-
-        const r21 = sA * cG + cA * sB * sG
-        const r22 = -sA * sG + cA * sB * cG
-        const r23 = cA * cB
-
-        const r31 = cB * sG
-        const r32 = cB * cG
-        const r33 = -sB
-
-        return (sunAz: number, sunAlt: number) => {
-            // 3. Sun Vector (World Coords: X=East, Y=North, Z=Up)
-            // SunCalc Azimuth: 0 = South, PI/2 = West. 
-            // Let's convert to: X = East (sin), Y = North (cos)
-            // Note: sunAz is already in radians from SunCalc.
-            const xW = -Math.cos(sunAlt) * Math.sin(sunAz) // East is -sin(az) if South=0
-            const yW = -Math.cos(sunAlt) * Math.cos(sunAz) // North is -cos(az) if South=0
-            const zW = Math.sin(sunAlt)
-
-            // 4. Transform World to Camera Coords
-            const xC = r11 * xW + r21 * yW + r31 * zW
-            const yC = r12 * xW + r22 * yW + r32 * zW
-            const zC = r13 * xW + r23 * yW + r33 * zW
-
-            // 5. Plane Clipping
-            // In this specific matrix space, the phone's "back camera" looks along the -Z axis of the device? 
-            // Actually, in DeviceOrientation, the screen face is +Z. So we look "through" the phone in -Z direction.
-            // A point is visible if its z-coordinate is NEGATIVE (in front of the camera).
-            if (zC >= 0) return { x: -100, y: -100, isVisible: false }
-
-            // 6. Perspective Projection
-            const focal = 1.0 / Math.tan((FOV_Y * Math.PI) / 360)
-
-            // Project (xC / -zC) because screen is looking towards -Z
-            const sX = (xC * focal) / -zC
-            const sY = (yC * focal) / -zC
-
-            // 7. Map to Percentages
-            // Center is 50,50. 
-            // On iPhone: X increases right, Y increases down (screen space).
-            // But matrix yC increases "up" the phone. So we invert it.
-            const xPercent = 50 + sX * 50
-            const yPercent = 50 - sY * 50
-
-            return {
-                x: xPercent,
-                y: yPercent,
-                isVisible: xPercent > -100 && xPercent < 200 && yPercent > -100 && yPercent < 200
-            }
-        }
-    }, [orientation])
-
-    const currentSun = useMemo(() => mapToScreen(azimuth, altitude), [azimuth, altitude, mapToScreen])
-
-    const pathPoints = useMemo(() => {
-        return hourlyPath.map(pos => {
-            const screenPos = mapToScreen(pos.azimuth, pos.altitude)
-            return { ...pos, ...screenPos }
-        })
-    }, [hourlyPath, mapToScreen])
-
-    const svgPathData = useMemo(() => {
-        const pts = pathPoints.filter(p => p.isVisible)
-        if (pts.length < 2) return ""
-        let path = `M ${pts[0].x} ${pts[0].y} `
-        for (let i = 0; i < pts.length - 1; i++) {
-            const curr = pts[i], next = pts[i + 1]
-            path += `Q ${curr.x} ${curr.y}, ${(curr.x + next.x) / 2} ${(curr.y + next.y) / 2} `
-        }
-        path += `L ${pts[pts.length - 1].x} ${pts[pts.length - 1].y}`
-        return path
-    }, [pathPoints])
+    // We place objects on a virtual sphere with this radius (pixels)
+    // Larger radius = more precision, but needs a corresponding CSS perspective.
+    const RADIUS = 1500
 
     if (!orientation) return null
 
+    // 1. Convert phone orientation to CSS rotations
+    // alpha = heading (0-360), beta = tilt (-180 to 180), gamma = roll (-90 to 90)
+    // We use the negative to rotate the WORLD around the CAMERA.
+    const worldTransform = {
+        rotateZ: -orientation.alpha,
+        rotateX: orientation.beta - 90,
+        rotateY: -orientation.gamma
+    }
+
+    /**
+     * Helper to convert Az/Alt to 3D Transform
+     * SunCalc Azimuth: 0 = South, PI = North
+     */
+    const getPosTransform = (az: number, alt: number) => {
+        // Convert SunCalc az/alt to degrees
+        const azDeg = (az * 180) / Math.PI
+        const altDeg = (alt * 180) / Math.PI
+
+        // Rotation logic:
+        // 1. Point at South (0,0)
+        // 2. Rotate Y by Azimuth (SunCalc 0 is South, clockwise)
+        // 3. Rotate X by Altitude
+        // 4. Move forward by RADIUS
+        return `rotateY(${-azDeg}deg) rotateX(${altDeg}deg) translateZ(${RADIUS}px)`
+    }
+
     return (
-        <div className="absolute inset-0 pointer-events-none z-10 overflow-hidden">
-            <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-                {svgPathData && (
-                    <path
-                        d={svgPathData}
-                        fill="none"
-                        stroke="#FFCC00"
-                        strokeWidth="0.5"
-                        strokeLinecap="round"
-                        className="opacity-40"
+        <div
+            className="absolute inset-0 z-10 overflow-hidden pointer-events-none"
+            style={{ perspective: `${RADIUS}px` }}
+        >
+            {/* The "Celestial Container" - Centered and rotated by the phone's orientation */}
+            <div
+                className="absolute left-1/2 top-1/2 w-0 h-0 transition-transform duration-75 ease-linear"
+                style={{
+                    transformStyle: 'preserve-3d',
+                    transform: `
+                        rotateX(${worldTransform.rotateX}deg) 
+                        rotateY(${worldTransform.rotateY}deg) 
+                        rotateZ(${worldTransform.rotateZ}deg)
+                    `
+                }}
+            >
+                {/* Trajectory Path (Rendered as many small segments/dots in 3D) */}
+                {hourlyPath.map((pos, i) => (
+                    <div
+                        key={`path-${i}`}
+                        className="absolute w-1 h-1 bg-[#FFCC00] rounded-full opacity-30"
+                        style={{
+                            transformStyle: 'preserve-3d',
+                            transform: `${getPosTransform(pos.azimuth, pos.altitude)} translate(-50%, -50%)`
+                        }}
                     />
-                )}
-            </svg>
+                ))}
 
-            {pathPoints.map((pt, i) => pt.isVisible && (
-                <div
-                    key={i}
-                    className="absolute flex flex-col items-center justify-center transform -translate-x-1/2 -translate-y-1/2"
-                    style={{ left: `${pt.x}%`, top: `${pt.y}%` }}
-                >
-                    <div className="w-2.5 h-2.5 rounded-full bg-[#FFCC00] shadow-sm mix-blend-screen opacity-90" />
-                    <span className="mt-1 text-white font-mono text-[8px] font-bold drop-shadow-md opacity-80">
-                        {pt.label}
-                    </span>
-                </div>
-            ))}
+                {/* Hourly Labels */}
+                {hourlyPath.map((pos, i) => (
+                    <div
+                        key={`label-${i}`}
+                        className="absolute flex flex-col items-center justify-center"
+                        style={{
+                            transformStyle: 'preserve-3d',
+                            transform: `${getPosTransform(pos.azimuth, pos.altitude)} translate(-50%, -50%) translateZ(10px)`
+                        }}
+                    >
+                        {/* Billboard effect: negate the world rotation to keep text facing camera */}
+                        <div style={{ transform: `rotateZ(${-worldTransform.rotateZ}deg) rotateY(${-worldTransform.rotateY}deg) rotateX(${-worldTransform.rotateX}deg)` }}>
+                            <div className="w-2.5 h-2.5 rounded-full bg-[#FFCC00] border border-white/40 shadow-sm" />
+                            <span className="mt-1 block text-white font-mono text-[9px] font-bold drop-shadow-lg whitespace-nowrap">
+                                {pos.label}
+                            </span>
+                        </div>
+                    </div>
+                ))}
 
-            {currentSun.isVisible && (
+                {/* The Sun Icon */}
                 <div
-                    className="absolute text-[#FFCC00] transform -translate-x-1/2 -translate-y-1/2 transition-all duration-75 ease-linear"
-                    style={{ left: `${currentSun.x}%`, top: `${currentSun.y}%` }}
+                    className="absolute"
+                    style={{
+                        transformStyle: 'preserve-3d',
+                        transform: `${getPosTransform(azimuth, altitude)} translate(-50%, -50%) translateZ(20px)`
+                    }}
                 >
-                    <svg width="64" height="64" viewBox="-16 -16 32 32" className="drop-shadow-2xl">
-                        <circle r="5" fill="currentColor" stroke="#FFFFFF" strokeWidth="0.6" />
-                        <g stroke="currentColor" strokeWidth="1.2" strokeLinecap="round">
-                            {[0, 45, 90, 135, 180, 225, 270, 315].map(angle => (
-                                <line
-                                    key={angle}
-                                    x1="0" y1="-8" x2="0" y2="-12"
-                                    transform={`rotate(${angle})`}
-                                />
-                            ))}
-                        </g>
-                        <circle r="1.5" fill="#FFFFFF" className="opacity-40" />
-                    </svg>
+                    {/* Billboard effect for the sun icon */}
+                    <div
+                        className="text-[#FFCC00]"
+                        style={{ transform: `rotateZ(${-worldTransform.rotateZ}deg) rotateY(${-worldTransform.rotateY}deg) rotateX(${-worldTransform.rotateX}deg)` }}
+                    >
+                        <svg width="80" height="80" viewBox="-20 -20 40 40" className="drop-shadow-2xl">
+                            <circle r="6" fill="currentColor" stroke="#FFFFFF" strokeWidth="0.8" />
+                            <g stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                                {[0, 45, 90, 135, 180, 225, 270, 315].map(angle => (
+                                    <line
+                                        key={angle}
+                                        x1="0" y1="-10" x2="0" y2="-15"
+                                        transform={`rotate(${angle})`}
+                                    />
+                                ))}
+                            </g>
+                        </svg>
+                    </div>
                 </div>
-            )}
+
+                {/* Ground Plane (Optional - Helps visualize the horizon) */}
+                <div
+                    className="absolute w-[4000px] h-[4000px] bg-white/5 border-t border-white/10"
+                    style={{
+                        transform: 'rotateX(90deg) translate(-50%, -50%)',
+                        transformOrigin: '0 0'
+                    }}
+                />
+            </div>
         </div>
     );
 }
