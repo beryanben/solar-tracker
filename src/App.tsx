@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useRef } from 'react'
 import CameraView from '@/components/CameraView'
 import SolarOverlay from '@/components/SolarOverlay'
 import DateScroller from '@/components/DateScroller'
@@ -19,8 +19,34 @@ const App = () => {
         requestAccess
     } = useSolarTracking()
 
+    const [azimuthOffset, setAzimuthOffset] = useState(0)
+    const lastTouchX = useRef<number | null>(null)
+
+    const handleTouchStart = (e: React.TouchEvent) => {
+        if (e.touches.length === 1) {
+            lastTouchX.current = e.touches[0].clientX
+        }
+    }
+
+    const handleTouchMove = (e: React.TouchEvent) => {
+        if (e.touches.length === 1 && lastTouchX.current !== null) {
+            const deltaX = e.touches[0].clientX - lastTouchX.current
+            setAzimuthOffset(prev => prev + (deltaX * 0.15)) // 0.15 degrees per px 
+            lastTouchX.current = e.touches[0].clientX
+        }
+    }
+
+    const handleTouchEnd = () => {
+        lastTouchX.current = null
+    }
+
     return (
-        <div className="relative h-[100dvh] w-screen bg-black overflow-hidden font-mono select-none">
+        <div
+            className="relative h-[100dvh] w-screen bg-black overflow-hidden font-mono select-none"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+        >
             {/* iOS Compass Permission Overlay */}
             {needsPermission && (
                 <div className="absolute inset-0 z-[100] bg-black/80 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
@@ -52,6 +78,13 @@ const App = () => {
                 </div>
             </div>
 
+            {/* Top Right: Calibration Hint */}
+            <div className="absolute top-10 right-6 flex flex-col items-end gap-1 z-50 animate-in fade-in duration-1000 delay-500">
+                <span className="text-white/40 text-[8px] uppercase tracking-[0.2em] font-medium bg-white/5 border border-white/10 px-3 py-1.5 rounded-full pointer-events-none">
+                    &larr; GLISSER POUR CALIBRER &rarr;
+                </span>
+            </div>
+
             {/* Center: Sun Path Overlay (AR) */}
             {sunPos && (
                 <SolarOverlay
@@ -59,6 +92,7 @@ const App = () => {
                     altitude={sunPos.altitude}
                     hourlyPath={hourlyPath}
                     orientation={orientation}
+                    azimuthOffset={azimuthOffset}
                 />
             )}
 

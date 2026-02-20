@@ -8,20 +8,21 @@ interface SolarOverlayProps {
     altitude: number
     hourlyPath?: HourlySunPos[]
     orientation: { alpha: number; beta: number; gamma: number } | null
+    azimuthOffset?: number
 }
 
-export default function SolarOverlay({ azimuth, altitude, hourlyPath = [], orientation }: SolarOverlayProps) {
+export default function SolarOverlay({ azimuth, altitude, hourlyPath = [], orientation, azimuthOffset = 0 }: SolarOverlayProps) {
     // Helper to map AZ/ALT to Screen X/Y
     const mapToScreen = (az: number, alt: number) => {
         if (!orientation) {
             return { x: 50, y: 50, isVisible: true }
         }
 
-        const sunCompassHeading = ((az * 180 / Math.PI) + 180) % 360
+        const sunCompassHeading = (((az * 180 / Math.PI) + 180) + azimuthOffset) % 360
         const sunElevation = alt * 180 / Math.PI
 
         const phoneHeading = orientation.alpha
-        const phoneElevation = 90 - orientation.beta
+        const phoneElevation = orientation.beta - 90 // Corrected vertical orientation
 
         let diffX = sunCompassHeading - phoneHeading
         while (diffX <= -180) diffX += 360
@@ -83,7 +84,8 @@ export default function SolarOverlay({ azimuth, altitude, hourlyPath = [], orien
 
     return (
         <div className="absolute inset-0 pointer-events-none z-10 overflow-hidden">
-            <svg className="w-full h-full drop-shadow-md" viewBox="0 0 100 100" preserveAspectRatio="none">
+            {/* SVG Layer for lines only (allowed to stretch) */}
+            <svg className="absolute inset-0 w-full h-full drop-shadow-md" viewBox="0 0 100 100" preserveAspectRatio="none">
                 {/* Horizon Line */}
                 <path
                     d="M 0,80 Q 50,10 100,80"
@@ -100,54 +102,63 @@ export default function SolarOverlay({ azimuth, altitude, hourlyPath = [], orien
                         d={svgPathData}
                         fill="none"
                         stroke="#FFCC00"
-                        strokeWidth="0.6"
+                        strokeWidth="0.4"
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         className="opacity-60"
                     />
                 )}
-
-                {/* Hourly Markers */}
-                {pathPoints.map((pt, i) => pt.isVisible && (
-                    <g key={i} style={{ transform: `translate(${pt.x}%, ${pt.y}%)` }}>
-                        <circle r="1.2" fill="#FFCC00" className="opacity-90 drop-shadow-sm" />
-                        <circle r="0.4" fill="#FFFFFF" />
-                        <text
-                            y="4"
-                            fontSize="2"
-                            fill="white"
-                            className="font-mono opacity-90 drop-shadow-sm"
-                            textAnchor="middle"
-                            fontWeight="bold"
-                        >
-                            {pt.label}
-                        </text>
-                    </g>
-                ))}
-
-                {/* Current Sun - Crisp Icon */}
-                {currentSun.isVisible && (
-                    <g style={{ transform: `translate(${currentSun.x}%, ${currentSun.y}%)` }} className="transition-all duration-75 ease-linear text-[#FFCC00]">
-                        {/* Sun core */}
-                        <circle r="2.5" fill="currentColor" stroke="#FFFFFF" strokeWidth="0.3" className="drop-shadow-lg" />
-
-                        {/* Sun rays */}
-                        <g stroke="currentColor" strokeWidth="0.5" strokeLinecap="round">
-                            <line x1="0" y1="-3.5" x2="0" y2="-5.5" />
-                            <line x1="0" y1="3.5" x2="0" y2="5.5" />
-                            <line x1="-3.5" y1="0" x2="-5.5" y2="0" />
-                            <line x1="3.5" y1="0" x2="5.5" y2="0" />
-                            <line x1="-2.5" y1="-2.5" x2="-4" y2="-4" />
-                            <line x1="2.5" y1="2.5" x2="4" y2="4" />
-                            <line x1="-2.5" y1="2.5" x2="-4" y2="4" />
-                            <line x1="2.5" y1="-2.5" x2="4" y2="-4" />
-                        </g>
-
-                        {/* Subtle inner highlight */}
-                        <circle r="1" fill="#FFFFFF" className="opacity-50" />
-                    </g>
-                )}
             </svg>
+
+            {/* HTML Layer for Icons (prevents horizontal squashing from viewBox) */}
+
+            {/* Hourly Markers */}
+            {pathPoints.map((pt, i) => pt.isVisible && (
+                <div
+                    key={i}
+                    className="absolute flex flex-col items-center justify-center pointer-events-none"
+                    style={{
+                        left: `${pt.x}%`,
+                        top: `${pt.y}%`,
+                        transform: 'translate(-50%, -50%)'
+                    }}
+                >
+                    <div className="relative flex items-center justify-center">
+                        <div className="w-3 h-3 rounded-full bg-[#FFCC00] opacity-90 shadow-sm mix-blend-screen" />
+                        <div className="absolute w-[3px] h-[3px] rounded-full bg-white opacity-90" />
+                    </div>
+                    <span className="mt-1 text-white font-mono text-[9px] font-bold drop-shadow-md opacity-90">
+                        {pt.label}
+                    </span>
+                </div>
+            ))}
+
+            {/* Current Sun - Crisp Icon */}
+            {currentSun.isVisible && (
+                <div
+                    className="absolute transition-all duration-75 ease-linear text-[#FFCC00] pointer-events-none"
+                    style={{
+                        left: `${currentSun.x}%`,
+                        top: `${currentSun.y}%`,
+                        transform: 'translate(-50%, -50%)'
+                    }}
+                >
+                    <svg width="48" height="48" viewBox="-12 -12 24 24" className="drop-shadow-lg">
+                        <circle r="5" fill="currentColor" stroke="#FFFFFF" strokeWidth="0.5" />
+                        <g stroke="currentColor" strokeWidth="1" strokeLinecap="round">
+                            <line x1="0" y1="-7.5" x2="0" y2="-10.5" />
+                            <line x1="0" y1="7.5" x2="0" y2="10.5" />
+                            <line x1="-7.5" y1="0" x2="-10.5" y2="0" />
+                            <line x1="7.5" y1="0" x2="10.5" y2="0" />
+                            <line x1="-5.3" y1="-5.3" x2="-7.4" y2="-7.4" />
+                            <line x1="5.3" y1="5.3" x2="7.4" y2="7.4" />
+                            <line x1="-5.3" y1="5.3" x2="-7.4" y2="7.4" />
+                            <line x1="5.3" y1="-5.3" x2="7.4" y2="-7.4" />
+                        </g>
+                        <circle r="1.5" fill="#FFFFFF" className="opacity-50" />
+                    </svg>
+                </div>
+            )}
         </div>
     );
 }
