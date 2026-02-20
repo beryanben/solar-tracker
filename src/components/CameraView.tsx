@@ -8,6 +8,7 @@ export default function CameraView() {
     useEffect(() => {
         async function startCamera() {
             try {
+                // Ensure audio is strictly false so iOS doesn't show the red "recording" pill
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: { facingMode: "environment" },
                     audio: false,
@@ -35,6 +36,7 @@ export default function CameraView() {
             ref={videoRef}
             autoPlay
             playsInline
+            muted
             className="absolute inset-0 h-[100dvh] w-full object-cover"
         />
     )

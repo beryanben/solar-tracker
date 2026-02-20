@@ -46,15 +46,32 @@ export default function SolarOverlay({ azimuth, altitude, hourlyPath = [], orien
         })
     }, [hourlyPath, orientation])
 
-    // Create SVG Path Data
+    // Create Smooth SVG Path Data (Midpoint Bezier interpolation)
     const svgPathData = useMemo(() => {
-        const visiblePoints = pathPoints.filter(p => p.isVisible)
-        if (visiblePoints.length < 2) return ""
+        const pts = pathPoints.filter(p => p.isVisible)
+        if (pts.length < 2) return ""
 
-        let path = `M ${visiblePoints[0].x} ${visiblePoints[0].y} `
-        for (let i = 1; i < visiblePoints.length; i++) {
-            path += `L ${visiblePoints[i].x} ${visiblePoints[i].y} `
+        let path = `M ${pts[0].x} ${pts[0].y} `
+
+        if (pts.length === 2) {
+            path += `L ${pts[1].x} ${pts[1].y}`
+            return path
         }
+
+        for (let i = 0; i < pts.length - 1; i++) {
+            const curr = pts[i]
+            const next = pts[i + 1]
+            const midX = (curr.x + next.x) / 2
+            const midY = (curr.y + next.y) / 2
+
+            if (i === 0) {
+                path += `L ${midX} ${midY} `
+            } else {
+                path += `Q ${curr.x} ${curr.y}, ${midX} ${midY} `
+            }
+        }
+        path += `L ${pts[pts.length - 1].x} ${pts[pts.length - 1].y}`
+
         return path
     }, [pathPoints])
 
@@ -62,21 +79,7 @@ export default function SolarOverlay({ azimuth, altitude, hourlyPath = [], orien
 
     return (
         <div className="absolute inset-0 pointer-events-none z-10 overflow-hidden">
-            <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-                <defs>
-                    <radialGradient id="real-sun" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
-                        <stop offset="0%" stopColor="#FFFFFF" stopOpacity="1" />
-                        <stop offset="15%" stopColor="#FFF9E6" stopOpacity="0.9" />
-                        <stop offset="40%" stopColor="#FFD27F" stopOpacity="0.8" />
-                        <stop offset="70%" stopColor="#FF8C00" stopOpacity="0.4" />
-                        <stop offset="100%" stopColor="#FF6600" stopOpacity="0" />
-                    </radialGradient>
-                    <radialGradient id="hour-sun" cx="50%" cy="50%" r="50%">
-                        <stop offset="0%" stopColor="#FFD27F" stopOpacity="0.8" />
-                        <stop offset="100%" stopColor="#FF6600" stopOpacity="0" />
-                    </radialGradient>
-                </defs>
-
+            <svg className="w-full h-full drop-shadow-md" viewBox="0 0 100 100" preserveAspectRatio="none">
                 {/* Horizon Line */}
                 <path
                     d="M 0,80 Q 50,10 100,80"
@@ -87,42 +90,57 @@ export default function SolarOverlay({ azimuth, altitude, hourlyPath = [], orien
                     className="opacity-10"
                 />
 
-                {/* Trajectory Curve */}
+                {/* Trajectory Smooth Curve */}
                 {svgPathData && (
                     <path
                         d={svgPathData}
                         fill="none"
-                        stroke="#FFD27F"
-                        strokeWidth="0.2"
-                        className="opacity-40"
+                        stroke="#FFCC00"
+                        strokeWidth="0.6"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="opacity-60"
                     />
                 )}
 
                 {/* Hourly Markers */}
                 {pathPoints.map((pt, i) => pt.isVisible && (
                     <g key={i} style={{ transform: `translate(${pt.x}%, ${pt.y}%)` }}>
-                        <circle r="1.5" fill="url(#hour-sun)" className="mix-blend-screen opacity-80" />
-                        <circle r="0.3" fill="#FFFFFF" className="opacity-90" />
+                        <circle r="1.2" fill="#FFCC00" className="opacity-90 drop-shadow-sm" />
+                        <circle r="0.4" fill="#FFFFFF" />
                         <text
                             y="4"
                             fontSize="2"
                             fill="white"
-                            className="font-mono opacity-80"
+                            className="font-mono opacity-90 drop-shadow-sm"
                             textAnchor="middle"
+                            fontWeight="bold"
                         >
                             {pt.label}
                         </text>
                     </g>
                 ))}
 
-                {/* Current Realistic Sun Graphic */}
+                {/* Current Sun - Crisp Icon */}
                 {currentSun.isVisible && (
-                    <g style={{ transform: `translate(${currentSun.x}%, ${currentSun.y}%)` }} className="transition-all duration-75 ease-linear">
-                        <circle
-                            r="8"
-                            fill="url(#real-sun)"
-                            className="opacity-100 mix-blend-screen"
-                        />
+                    <g style={{ transform: `translate(${currentSun.x}%, ${currentSun.y}%)` }} className="transition-all duration-75 ease-linear text-[#FFCC00]">
+                        {/* Sun core */}
+                        <circle r="2.5" fill="currentColor" stroke="#FFFFFF" strokeWidth="0.3" className="drop-shadow-lg" />
+
+                        {/* Sun rays */}
+                        <g stroke="currentColor" strokeWidth="0.5" strokeLinecap="round">
+                            <line x1="0" y1="-3.5" x2="0" y2="-5.5" />
+                            <line x1="0" y1="3.5" x2="0" y2="5.5" />
+                            <line x1="-3.5" y1="0" x2="-5.5" y2="0" />
+                            <line x1="3.5" y1="0" x2="5.5" y2="0" />
+                            <line x1="-2.5" y1="-2.5" x2="-4" y2="-4" />
+                            <line x1="2.5" y1="2.5" x2="4" y2="4" />
+                            <line x1="-2.5" y1="2.5" x2="-4" y2="4" />
+                            <line x1="2.5" y1="-2.5" x2="4" y2="-4" />
+                        </g>
+
+                        {/* Subtle inner highlight */}
+                        <circle r="1" fill="#FFFFFF" className="opacity-50" />
                     </g>
                 )}
             </svg>
