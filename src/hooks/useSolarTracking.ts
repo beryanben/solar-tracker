@@ -61,10 +61,18 @@ export default function useSolarTracking() {
     const smoothedBeta = useRef<number | null>(null)
     const smoothedGamma = useRef<number | null>(null)
 
-    // Smoothing factor (0 = no new data, 1 = no smoothing). Lower is smoother but laggier.
-    const SMOOTHING_FACTOR = 0.15
+    // Smoothing factor (0 = no new data, 1 = no smoothing). 
+    // Increased to 0.4 for faster "lock-on" response.
+    const SMOOTHING_FACTOR = 0.4
+
+    const lastProcessedTime = useRef<number>(0)
+    const THROTTLE_MS = 16 // ~60fps cap
 
     const handleOrientation = useCallback((e: DeviceOrientationEvent) => {
+        const now = performance.now()
+        if (now - lastProcessedTime.current < THROTTLE_MS) return
+        lastProcessedTime.current = now
+
         let alpha = e.alpha || 0
         let beta = e.beta || 0
         let gamma = e.gamma || 0
