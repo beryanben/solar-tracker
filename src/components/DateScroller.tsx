@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useRef, useEffect } from "react"
+import React from "react"
 
 interface DateScrollerProps {
     selectedDate: Date
@@ -8,60 +8,34 @@ interface DateScrollerProps {
 }
 
 export default function DateScroller({ selectedDate, onDateChange }: DateScrollerProps) {
-    const scrollRef = useRef<HTMLDivElement>(null)
-
-    // Generate dates for the current year
-    const dates = Array.from({ length: 12 }, (_, i) => {
-        const d = new Date()
-        d.setMonth(i)
-        d.setDate(15) // Mid-month for representative seasonal position
-        return d
-    })
-
-    const monthNames = [
-        "Jan", "Fév", "Mar", "Avr", "Mai", "Juin",
-        "Juil", "Août", "Sep", "Oct", "Nov", "Déc"
-    ]
+    const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
+    const currentMonth = selectedDate.getMonth()
 
     return (
-        <div className="w-full bg-black/40 backdrop-blur-xl border-t border-white/10 p-6 pb-12">
-            <div className="flex flex-col gap-4">
-                <div className="flex justify-between items-center px-2">
-                    <span className="text-white/40 text-xs font-bold uppercase tracking-widest">Saisons</span>
-                    <span className="text-orange-400 text-xs font-mono font-bold">
-                        {selectedDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
-                    </span>
-                </div>
+        <div className="flex items-center gap-6 px-10 py-5 bg-black/40 backdrop-blur-2xl border border-white/5 rounded-full ring-1 ring-white/10 shadow-2xl animate-in fade-in slide-in-from-bottom-8 duration-1000">
+            {months.map((month, i) => {
+                const isSelected = currentMonth === i
+                return (
+                    <button
+                        key={month}
+                        onClick={() => {
+                            if (typeof navigator !== 'undefined' && navigator.vibrate) {
+                                navigator.vibrate(20)
+                            }
+                            const newDate = new Date(selectedDate)
+                            newDate.setMonth(i)
+                            onDateChange(newDate)
+                        }}
+                        className="group relative flex flex-col items-center transition-all duration-500 outline-none"
+                    >
+                        <span className={`text-[11px] font-mono tracking-widest transition-all duration-300 ${isSelected ? 'text-white font-bold scale-110' : 'text-[#888888] group-hover:text-white/60'}`}>
+                            {month}
+                        </span>
 
-                <div
-                    ref={scrollRef}
-                    className="flex gap-4 overflow-x-auto no-scrollbar scroll-smooth pb-2"
-                >
-                    {dates.map((d, i) => {
-                        const isSelected = d.getMonth() === selectedDate.getMonth()
-                        return (
-                            <button
-                                key={i}
-                                onClick={() => onDateChange(d)}
-                                className={`flex-shrink-0 min-w-[80px] h-20 rounded-2xl flex flex-col items-center justify-center transition-all duration-300 border ${isSelected
-                                    ? "bg-orange-500 border-orange-400 shadow-lg shadow-orange-500/20"
-                                    : "bg-white/5 border-white/5 hover:border-white/20"
-                                    }`}
-                            >
-                                <span className={`text-[10px] font-bold uppercase tracking-tighter ${isSelected ? "text-white/60" : "text-white/20"}`}>
-                                    {d.getFullYear()}
-                                </span>
-                                <span className={`text-lg font-bold ${isSelected ? "text-white" : "text-white/60"}`}>
-                                    {monthNames[d.getMonth()]}
-                                </span>
-                                {isSelected && (
-                                    <div className="mt-1 w-1 h-1 rounded-full bg-white animate-pulse" />
-                                )}
-                            </button>
-                        )
-                    })}
-                </div>
-            </div>
+                        <div className={`mt-2 w-1 h-1 rounded-full bg-[#FF6600] transition-all duration-500 shadow-[0_0_8px_#FF6600] ${isSelected ? 'opacity-100 scale-100' : 'opacity-0 scale-0 group-hover:opacity-40'}`} />
+                    </button>
+                )
+            })}
         </div>
     )
 }
