@@ -1,97 +1,131 @@
 "use client"
 
 import React, { useMemo } from "react"
+import { HourlySunPos } from '@/hooks/useSolarTracking'
 
 interface SolarOverlayProps {
     azimuth: number
     altitude: number
+    hourlyPath?: HourlySunPos[]
     orientation: { alpha: number; beta: number; gamma: number } | null
 }
 
-export default function SolarOverlay({ azimuth, altitude }: SolarOverlayProps) {
-    // We'll use a 2D projection for the HUD look.
-    // In a real AR app, this would be mapped to the 3D coordinate system,
-    // but for the "Cinematic HUD" look requested, we'll center it.
+export default function SolarOverlay({ azimuth, altitude, hourlyPath = [], orientation }: SolarOverlayProps) {
+    // Helper to map AZ/ALT to Screen X/Y
+    const mapToScreen = (az: number, alt: number) => {
+        if (!orientation) {
+            return { x: 50, y: 50, isVisible: true }
+        }
 
-    const sunX = useMemo(() => {
-        // Map azimuth to horizontal position (-Math.PI to Math.PI) -> (0% to 100%)
-        // Center is 0 azimuth.
-        return 50 + (azimuth / (Math.PI)) * 50;
-    }, [azimuth]);
+        const sunCompassHeading = ((az * 180 / Math.PI) + 180) % 360
+        const sunElevation = alt * 180 / Math.PI
 
-    const sunY = useMemo(() => {
-        // Map altitude to vertical position (0 to Math.PI/2) -> (80% to 20%)
-        return 80 - (altitude / (Math.PI / 2)) * 60;
-    }, [altitude]);
+        const phoneHeading = orientation.alpha
+        const phoneElevation = 90 - orientation.beta
+
+        let diffX = sunCompassHeading - phoneHeading
+        while (diffX <= -180) diffX += 360
+        while (diffX > 180) diffX -= 360
+
+        // FOV scaling: 30 degrees off center = 50% screen width
+        const xPercent = 50 + (diffX / 30) * 50
+        const yPercent = 50 - ((sunElevation - phoneElevation) / 40) * 50
+
+        // Visibility bound (render even slightly offscreen to maintain path continuity)
+        const isVisible = xPercent > -150 && xPercent < 250 && yPercent > -150 && yPercent < 250
+
+        return { x: xPercent, y: yPercent, isVisible }
+    }
+
+    const currentSun = useMemo(() => mapToScreen(azimuth, altitude), [azimuth, altitude, orientation])
+
+    const pathPoints = useMemo(() => {
+        return hourlyPath.map(pos => {
+            const screenPos = mapToScreen(pos.azimuth, pos.altitude)
+            return { ...pos, ...screenPos }
+        })
+    }, [hourlyPath, orientation])
+
+    // Create SVG Path Data
+    const svgPathData = useMemo(() => {
+        const visiblePoints = pathPoints.filter(p => p.isVisible)
+        if (visiblePoints.length < 2) return ""
+
+        let path = `M ${visiblePoints[0].x} ${visiblePoints[0].y} `
+        for (let i = 1; i < visiblePoints.length; i++) {
+            path += `L ${visiblePoints[i].x} ${visiblePoints[i].y} `
+        }
+        return path
+    }, [pathPoints])
+
+    if (!currentSun.isVisible && pathPoints.filter(p => p.isVisible).length === 0) return null
 
     return (
         <div className="absolute inset-0 pointer-events-none z-10 overflow-hidden">
             <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
                 <defs>
-                    <filter id="sun-glow" x="-50%" y="-50%" width="200%" height="200%">
-                        <feGaussianBlur stdDeviation="1.5" result="blur" />
-                        <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                    </filter>
+                    <radialGradient id="real-sun" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+                        <stop offset="0%" stopColor="#FFFFFF" stopOpacity="1" />
+                        <stop offset="15%" stopColor="#FFF9E6" stopOpacity="0.9" />
+                        <stop offset="40%" stopColor="#FFD27F" stopOpacity="0.8" />
+                        <stop offset="70%" stopColor="#FF8C00" stopOpacity="0.4" />
+                        <stop offset="100%" stopColor="#FF6600" stopOpacity="0" />
+                    </radialGradient>
+                    <radialGradient id="hour-sun" cx="50%" cy="50%" r="50%">
+                        <stop offset="0%" stopColor="#FFD27F" stopOpacity="0.8" />
+                        <stop offset="100%" stopColor="#FF6600" stopOpacity="0" />
+                    </radialGradient>
                 </defs>
 
-                {/* Dotted Sun Path Arc */}
+                {/* Horizon Line */}
                 <path
-                    d="M 5,80 Q 50,10 95,80"
+                    d="M 0,80 Q 50,10 100,80"
                     fill="none"
-                    stroke="#888888"
-                    strokeWidth="0.2"
-                    strokeDasharray="0.5,1.5"
-                    className="opacity-30"
+                    stroke="#FFFFFF"
+                    strokeWidth="0.1"
+                    strokeDasharray="0.5, 2"
+                    className="opacity-10"
                 />
 
-                {/* Cinematic Modern Sun */}
-                <g style={{ transform: `translate(${sunX}%, ${sunY}%)` }} className="transition-all duration-700 ease-out">
-                    {/* Outer Rotating HUD Ring */}
-                    <circle
-                        r="3.5"
+                {/* Trajectory Curve */}
+                {svgPathData && (
+                    <path
+                        d={svgPathData}
                         fill="none"
-                        stroke="#FF6600"
-                        strokeWidth="0.1"
-                        strokeDasharray="0.5, 0.5"
-                        className="animate-spin-slow opacity-60"
-                        style={{ transformOrigin: 'center' }}
+                        stroke="#FFD27F"
+                        strokeWidth="0.2"
+                        className="opacity-40"
                     />
+                )}
 
-                    {/* Soft Pulse Glow */}
-                    <circle
-                        r="2"
-                        fill="#FF6600"
-                        className="opacity-animate-pulse"
-                        filter="url(#sun-glow)"
-                    />
+                {/* Hourly Markers */}
+                {pathPoints.map((pt, i) => pt.isVisible && (
+                    <g key={i} style={{ transform: `translate(${pt.x}%, ${pt.y}%)` }}>
+                        <circle r="1.5" fill="url(#hour-sun)" className="mix-blend-screen opacity-80" />
+                        <circle r="0.3" fill="#FFFFFF" className="opacity-90" />
+                        <text
+                            y="4"
+                            fontSize="2"
+                            fill="white"
+                            className="font-mono opacity-80"
+                            textAnchor="middle"
+                        >
+                            {pt.label}
+                        </text>
+                    </g>
+                ))}
 
-                    {/* Intense Solid Core */}
-                    <circle
-                        r="0.8"
-                        fill="#FFFFFF"
-                        className="opacity-90 shadow-2xl"
-                        filter="url(#sun-glow)"
-                    />
-                </g>
+                {/* Current Realistic Sun Graphic */}
+                {currentSun.isVisible && (
+                    <g style={{ transform: `translate(${currentSun.x}%, ${currentSun.y}%)` }} className="transition-all duration-75 ease-linear">
+                        <circle
+                            r="8"
+                            fill="url(#real-sun)"
+                            className="opacity-100 mix-blend-screen"
+                        />
+                    </g>
+                )}
             </svg>
-
-            <style>{`
-                @keyframes pulse-opacity {
-                    0%, 100% { opacity: 0.15; transform: scale(1); }
-                    50% { opacity: 0.4; transform: scale(1.4); }
-                }
-                .opacity-animate-pulse {
-                    animation: pulse-opacity 3s infinite ease-in-out;
-                    transform-origin: center;
-                }
-                .animate-spin-slow {
-                    animation: spin 15s linear infinite;
-                }
-                @keyframes spin {
-                    from { transform: rotate(0deg); }
-                    to { transform: rotate(360deg); }
-                }
-            `}</style>
         </div>
     );
 }

@@ -35,7 +35,7 @@ export default function CameraView() {
             ref={videoRef}
             autoPlay
             playsInline
-            className="fixed inset-0 h-full w-full object-cover"
+            className="absolute inset-0 h-[100dvh] w-full object-cover"
         />
     )
 }

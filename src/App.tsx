@@ -8,20 +8,40 @@ import { Navigation } from 'lucide-react'
 const App = () => {
     const {
         sunPos,
+        hourlyPath,
         orientation,
         address,
         date,
         setDate,
         loadingAddress,
-        refreshLocation
+        refreshLocation,
+        needsPermission,
+        requestAccess
     } = useSolarTracking()
 
     return (
-        <div className="relative h-screen w-screen bg-black overflow-hidden font-mono select-none">
+        <div className="relative h-[100dvh] w-screen bg-black overflow-hidden font-mono select-none">
+            {/* iOS Compass Permission Overlay */}
+            {needsPermission && (
+                <div className="absolute inset-0 z-[100] bg-black/80 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
+                    <img src="/logo.png" alt="Limandat" className="h-[24px] mb-8 opacity-80" />
+                    <h2 className="text-white text-sm tracking-widest uppercase mb-3">Calibration requise</h2>
+                    <p className="text-[#888888] text-[11px] mb-8 max-w-xs leading-relaxed">
+                        L'affichage HUD nécessite l'accès à la boussole et au gyroscope de votre appareil pour se superposer au monde réel.
+                    </p>
+                    <button
+                        onClick={requestAccess}
+                        className="bg-white/10 border border-white/20 text-white px-8 py-4 rounded-full font-bold text-xs hover:bg-white inset-ring hover:text-black transition-all"
+                    >
+                        ACTIVER LE SUIVI AR
+                    </button>
+                </div>
+            )}
+
             {/* Camera Background */}
             <CameraView />
 
-            {/* Top Left: Position Actual */}
+            {/* Top Left: Position */}
             <div className="absolute top-10 left-10 flex flex-col gap-1 z-50 animate-in fade-in slide-in-from-top-4 duration-700">
                 <div className="flex items-center gap-2">
                     <span className="text-[#888888] text-[10px] uppercase tracking-[0.3em] font-medium">Position</span>
@@ -32,11 +52,12 @@ const App = () => {
                 </div>
             </div>
 
-            {/* Center: Sun Path Overlay (2D) */}
+            {/* Center: Sun Path Overlay (AR) */}
             {sunPos && (
                 <SolarOverlay
                     azimuth={sunPos.azimuth}
                     altitude={sunPos.altitude}
+                    hourlyPath={hourlyPath}
                     orientation={orientation}
                 />
             )}
